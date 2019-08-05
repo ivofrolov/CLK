@@ -8,84 +8,108 @@
 typedef uint16_t MasterClockTick;
 typedef uint16_t SubClockTick;
 
-const uint32_t FREQ_TICKS = 8160L*1000L/(48*4);
-const MasterClockTick FREQ_MIN = 666;
-const MasterClockTick FREQ_DUTY_NOMINAL = 816;
+#define TIMER_FREQ 125000L
+#ifdef __AVR_ATtiny85__
+#define TIMER_PRESCALER 2
+#else // __AVR_ATmega328P__
+#define TIMER_PRESCALER 8
+#endif
+const uint8_t TIMER_COMP_TICKS = F_CPU / TIMER_PRESCALER / TIMER_FREQ - 1;
 
-const SubClockTick B_MULTIPLIERS[] = { 48*8, 48*6, 48*4, 48*3, 48*2, 48*1, 48/2, 48/3, 48/4, 48/6, 48/8 };
+const SubClockTick B_MULTIPLIERS[] = { 48*8 , 48*6 , 48*4, 48*3, 48*2, 48*1, 48/2, 48/3, 48/4, 48/6 , 48/8  };
 const SubClockTick C_MULTIPLIERS[] = { 48*24, 48*12, 48*8, 48*4, 48*2, 48*1, 48/2, 48/4, 48/8, 48/12, 48/24 };
 
-#define CLOCK_TYPE_A 1
-#define CLOCK_TYPE_B 2
-#define CLOCK_TYPE_C 3
-
-
 void reset();
+
+long map(long x, long in_min, long in_max, long out_min, long out_max) {
+    return (x - in_min) * (out_max - out_min + 1) / (in_max - in_min + 1) + out_min;
+}
 
 template<uint8_t TYPE>
 class ClockGenerator {
 private:
 public:
-  volatile SubClockTick period;
-  volatile SubClockTick duty;
-  volatile SubClockTick pos;
-  void setPeriod(SubClockTick ticks, SubClockTick maxDuty){
-    duty = min(maxDuty, ticks>>1);
-    period = ticks-1;
-  }
-  void resetPhase(){
-    pos = -1;
-    on();
-  }
-  void clock(){
-    if(++pos == duty){
-      off();
+    volatile SubClockTick period;
+    volatile SubClockTick duty;
+    volatile SubClockTick pos;
+  
+    void setPeriod(SubClockTick ticks) {
+        duty = ticks>>1;
+        period = ticks-1;
     }
-    if(pos > period){
-      pos = 0;
-      on();
+    
+    void resetPhase() {
+        pos = -1;
+        on();
     }
-  }
-  void toggle(){
-    if(isOff())
-      on();
-    else
-      off();
-  }
-  void on();
-  void off();
-  bool isOff();
+
+    void clock(){
+        if (++pos == duty) {
+            off();
+        }
+        
+        if (pos > period) {
+            pos = 0;
+            on();
+        }
+    }
+
+    void toggle() {
+        if (isOff()) {
+            on();
+        }
+        else {
+            off();
+        }
+    }
+
+    void on();
+
+    void off();
+
+    bool isOff();
 };
 
-template<> void ClockGenerator<CLOCK_TYPE_A>::on(){
-  GENERATOR_OUTA_PORT &= ~_BV(GENERATOR_OUTA_PIN);
-  reset();
-}
-template<> void ClockGenerator<CLOCK_TYPE_A>::off(){
-  GENERATOR_OUTA_PORT |= _BV(GENERATOR_OUTA_PIN);
-}
-template<> bool ClockGenerator<CLOCK_TYPE_A>::isOff(){
-  return GENERATOR_OUTA_PORT & _BV(GENERATOR_OUTA_PIN);
+enum { CLOCK_TYPE_A, CLOCK_TYPE_B, CLOCK_TYPE_C };
+
+// clock A
+template<> void ClockGenerator<CLOCK_TYPE_A>::on() {
+    GENERATOR_OUTA_PORT &= ~_BV(GENERATOR_OUTA_PIN);
+    reset();
 }
 
-template<> void ClockGenerator<CLOCK_TYPE_B>::on(){
-  GENERATOR_OUTB_PORT &= ~_BV(GENERATOR_OUTB_PIN);
-}
-template<> void ClockGenerator<CLOCK_TYPE_B>::off(){
-  GENERATOR_OUTB_PORT |= _BV(GENERATOR_OUTB_PIN);
-}
-template<> bool ClockGenerator<CLOCK_TYPE_B>::isOff(){
-  return GENERATOR_OUTB_PORT & _BV(GENERATOR_OUTB_PIN);
+template<> void ClockGenerator<CLOCK_TYPE_A>::off() {
+    GENERATOR_OUTA_PORT |= _BV(GENERATOR_OUTA_PIN);
 }
 
-template<> void ClockGenerator<CLOCK_TYPE_C>::on(){
-  GENERATOR_OUTC_PORT &= ~_BV(GENERATOR_OUTC_PIN);
+template<> bool ClockGenerator<CLOCK_TYPE_A>::isOff() {
+    return GENERATOR_OUTA_PORT & _BV(GENERATOR_OUTA_PIN);
 }
-template<> void ClockGenerator<CLOCK_TYPE_C>::off(){
-  GENERATOR_OUTC_PORT |= _BV(GENERATOR_OUTC_PIN);
+
+// clock B
+template<> void ClockGenerator<CLOCK_TYPE_B>::on() {
+    GENERATOR_OUTB_PORT &= ~_BV(GENERATOR_OUTB_PIN);
 }
-template<> bool ClockGenerator<CLOCK_TYPE_C>::isOff(){
-  return GENERATOR_OUTC_PORT & _BV(GENERATOR_OUTC_PIN);
+
+template<> void ClockGenerator<CLOCK_TYPE_B>::off() {
+    GENERATOR_OUTB_PORT |= _BV(GENERATOR_OUTB_PIN);
+}
+
+template<> bool ClockGenerator<CLOCK_TYPE_B>::isOff() {
+    return GENERATOR_OUTB_PORT & _BV(GENERATOR_OUTB_PIN);
+}
+
+// clock C
+template<> void ClockGenerator<CLOCK_TYPE_C>::on() {
+    GENERATOR_OUTC_PORT &= ~_BV(GENERATOR_OUTC_PIN);
+}
+
+template<> void ClockGenerator<CLOCK_TYPE_C>::off() {
+    GENERATOR_OUTC_PORT |= _BV(GENERATOR_OUTC_PIN);
+}
+
+template<> bool ClockGenerator<CLOCK_TYPE_C>::isOff() {
+    return GENERATOR_OUTC_PORT & _BV(GENERATOR_OUTC_PIN);
 }
 
 ClockGenerator<CLOCK_TYPE_A> clockA;
@@ -95,80 +119,115 @@ ClockGenerator<CLOCK_TYPE_C> clockC;
 class MasterClock {
 private:
 public:
-  volatile bool resetB = false;
-  volatile bool resetC = false;
-  volatile MasterClockTick period;
-  MasterClockTick pos;
-  void setPeriod(MasterClockTick ticks){
-    period = ticks;
-  }
-  void clock(){
-    if(++pos > period){
-      pos = 0;
-      clockA.clock();
-      clockB.clock();
-      clockC.clock();
+    volatile bool resetB = false;
+    volatile bool resetC = false;
+    volatile MasterClockTick period;
+    MasterClockTick pos;
+  
+    void setPeriod(MasterClockTick ticks) {
+        period = ticks;
     }
-  }
-  void reset(){
-    if(resetB){
-      clockB.resetPhase();
-      resetB = false;
+
+    void clock() {
+        if (++pos > period) {
+            pos = 0;
+            clockA.clock();
+            clockB.clock();
+            clockC.clock();
+        }
     }
-    if(resetC){
-      clockC.resetPhase();
-      resetC = false;
+    
+    void reset() {
+        if (resetB) {
+            clockB.resetPhase();
+            resetB = false;
+        }
+
+        if (resetC) {
+            clockC.resetPhase();
+            resetC = false;
+        }
     }
-  }
 };
 
 MasterClock master;
 
-void setup(){
-  cli();
-  GENERATOR_OUTA_DDR |= _BV(GENERATOR_OUTA_PIN);
-  GENERATOR_OUTB_DDR |= _BV(GENERATOR_OUTB_PIN);
-  GENERATOR_OUTC_DDR |= _BV(GENERATOR_OUTC_PIN);
-  OCR2A = 14;
-  TCCR2A |= (1 << WGM21);
-  // Set to CTC Mode
-  TIMSK2 |= (1 << OCIE2A);
-  // Set interrupt on compare match
-  // TCCR2B |= (1 << CS20); // prescalar 1
-  TCCR2B |= (1 << CS21); // prescalar 8
-  // TCCR2B |= (1 << CS22); // prescalar 64
-  setup_adc();
-  sei();
+void reset(){
+    master.reset();
+}
+
+void setup_output() {
+    GENERATOR_OUTA_DDR |= _BV(GENERATOR_OUTA_PIN);
+    GENERATOR_OUTB_DDR |= _BV(GENERATOR_OUTB_PIN);
+    GENERATOR_OUTC_DDR |= _BV(GENERATOR_OUTC_PIN);
+}
+
+void setup_timer() {
+    #ifdef __AVR_ATtiny85__
+    // ctc mode
+    TCCR1 |= _BV(CTC1);
+    // prescaler 2
+    TCCR1 |= _BV(CS11);
+    // reset timer
+    TCNT1 = 0;
+    // compare value
+    OCR1C = TIMER_COMP_TICKS;
+    // enable interrupt
+    TIMSK |= _BV(OCIE1A);
+    #else // __AVR_ATmega328P__
+    // ctc mode
+    TCCR2A |= _BV(WGM21);
+    // prescaler 8
+    TCCR2B |= _BV(CS21);
+    // reset timer
+    TCNT2 = 0;
+    // compare value
+    OCR2A = TIMER_COMP_TICKS;
+    // enable interrupt
+    TIMSK2 |= _BV(OCIE2A);
+    #endif
+}
+
+void setup() {
+    cli();
+    setup_output();
+    setup_timer();
+    setup_adc();
+    sei();
 }
 
 SubClockTick mulB = 5;
 SubClockTick mulC = 5;
-void loop(){
-  MasterClockTick a;
-  SubClockTick b, c;
-  b = (getAnalogValue(GENERATOR_RATE_B_CONTROL) * 11) / ADC_VALUE_RANGE;
-  if(b != mulB){
-    mulB = b;
-    master.resetB = true;
-  }
-  c = (getAnalogValue(GENERATOR_RATE_C_CONTROL) * 11) / ADC_VALUE_RANGE;
-  if(c != mulC){
-    mulC = c;
-    master.resetC = true;
-  }
-  a = getAnalogValue(GENERATOR_RATE_A_CONTROL)*2/3 + FREQ_MIN;
-  uint32_t ticks = FREQ_TICKS / a;
-  uint16_t maxDuty = FREQ_DUTY_NOMINAL / ticks;
-  master.setPeriod(ticks);
-  clockA.setPeriod(48, maxDuty);
-  clockB.setPeriod(B_MULTIPLIERS[b], maxDuty);
-  clockC.setPeriod(C_MULTIPLIERS[c], maxDuty);
+
+void loop() {
+    SubClockTick b = map(getAnalogValue(GENERATOR_RATE_B_CONTROL), 0, ADC_VALUE_RANGE, 0, 10);
+    if (b != mulB) {
+        mulB = b;
+        master.resetB = true;
+    }
+
+    SubClockTick c = map(getAnalogValue(GENERATOR_RATE_C_CONTROL), 0, ADC_VALUE_RANGE, 0, 10);
+    if (c != mulC) {
+        mulC = c;
+        master.resetC = true;
+    }
+    
+    // desired ticks count derived from (TIMER_FREQ / CLOCK_PRESCALER_48 / (BPM / 60 * 4))
+    MasterClockTick a = map(getReversedAnalogValue(GENERATOR_RATE_A_CONTROL), 0, ADC_VALUE_RANGE, 176, 968);
+    
+    master.setPeriod(a);
+    
+    clockA.setPeriod(48);
+    clockB.setPeriod(B_MULTIPLIERS[b]);
+    clockC.setPeriod(C_MULTIPLIERS[c]);
 }
 
-ISR(TIMER2_COMPA_vect){
-  master.clock();
-}
+#ifdef __AVR_ATtiny85__
+#define GENERATOR_TIMER_COMP_VECTOR TIMER1_COMPA_vect
+#else // __AVR_ATmega328P__
+#define GENERATOR_TIMER_COMP_VECTOR TIMER2_COMPA_vect
+#endif
 
-void reset(){
-  master.reset();
+ISR(GENERATOR_TIMER_COMP_VECTOR) {
+    master.clock();
 }

@@ -2,4 +2,6 @@
 .pioenvs
 .piolibdeps
 
+resources
+
 *.sublime-*

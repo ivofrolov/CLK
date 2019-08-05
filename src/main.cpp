@@ -1,12 +1,10 @@
-
-void init();
 void setup();
+
 void loop();
 
-int main(void){
-//   init();
-  setup();
-  for (;;)
-    loop();
-  return 0;
+int main(void) {
+    setup();
+    for (;;)
+        loop();
+    return 0;
 }
