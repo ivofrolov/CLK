@@ -9,11 +9,8 @@ typedef uint16_t MasterClockTick;
 typedef uint16_t SubClockTick;
 
 #define TIMER_FREQ 125000L
-#ifdef __AVR_ATtiny85__
 #define TIMER_PRESCALER 2
-#else // __AVR_ATmega328P__
-#define TIMER_PRESCALER 8
-#endif
+
 const uint8_t TIMER_COMP_TICKS = F_CPU / TIMER_PRESCALER / TIMER_FREQ - 1;
 
 const SubClockTick B_MULTIPLIERS[] = { 48*8 , 48*6 , 48*4, 48*3, 48*2, 48*1, 48/2, 48/3, 48/4, 48/6 , 48/8  };
@@ -163,7 +160,6 @@ void setup_output() {
 }
 
 void setup_timer() {
-    #ifdef __AVR_ATtiny85__
     // ctc mode
     TCCR1 |= _BV(CTC1);
     // prescaler 2
@@ -174,18 +170,6 @@ void setup_timer() {
     OCR1C = TIMER_COMP_TICKS;
     // enable interrupt
     TIMSK |= _BV(OCIE1A);
-    #else // __AVR_ATmega328P__
-    // ctc mode
-    TCCR2A |= _BV(WGM21);
-    // prescaler 8
-    TCCR2B |= _BV(CS21);
-    // reset timer
-    TCNT2 = 0;
-    // compare value
-    OCR2A = TIMER_COMP_TICKS;
-    // enable interrupt
-    TIMSK2 |= _BV(OCIE2A);
-    #endif
 }
 
 void setup() {
@@ -222,12 +206,7 @@ void loop() {
     clockC.setPeriod(C_MULTIPLIERS[c]);
 }
 
-#ifdef __AVR_ATtiny85__
 #define GENERATOR_TIMER_COMP_VECTOR TIMER1_COMPA_vect
-#else // __AVR_ATmega328P__
-#define GENERATOR_TIMER_COMP_VECTOR TIMER2_COMPA_vect
-#endif
-
 ISR(GENERATOR_TIMER_COMP_VECTOR) {
     master.clock();
 }

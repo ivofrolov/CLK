@@ -4,15 +4,8 @@
 uint16_t volatile adc_values[ADC_CHANNELS];
 
 void setup_adc() {
-    #ifdef __AVR_ATtiny85__
     // prescaler 64 - 125kHz sample rate @ 8MHz
     ADCSRA |= _BV(ADPS2) | _BV(ADPS1);
-    #else // __AVR_ATmega328P__
-    // prescaler 128 - 125kHz sample rate @ 16MHz
-    ADCSRA |= _BV(ADPS2) | _BV(ADPS1) | _BV(ADPS0);
-    // set ADC reference to AVCC
-    ADMUX |= _BV(REFS0);
-    #endif
     // auto trigger mode
     ADCSRA |= _BV(ADATE);
     // enable ADC
