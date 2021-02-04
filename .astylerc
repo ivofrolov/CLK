@@ -1,0 +1,9 @@
+# see http://astyle.sourceforge.net/astyle.html
+
+--style=kr
+--max-code-length=80
+--indent=spaces=4
+--indent-labels
+--pad-comma
+--pad-header
+-n
