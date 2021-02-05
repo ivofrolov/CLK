@@ -15,11 +15,19 @@ struct cg_clock {
     /* current binary state of trigger */
     uint8_t state;
 
+    /* current clock position in ticks */
     uint16_t _pos;
+    /* one sub beat of multiplied clock in ticks */
     uint16_t _mod_period;
+    /* current multiplied sub clock position in ticks */
     uint16_t _mod_pos;
+    /* bit mask to compensate multiplied clock triggers timing
+    where each bit represents added tick to the next sub beat
+    */
     uint32_t _comp_mask;
+    /* elapsed multiplied clock sub beats */
     uint8_t _mult_cnt;
+    /* elapsed divided clock sub beats */
     uint8_t _div_cnt;
 
     /* scheduled new state */
