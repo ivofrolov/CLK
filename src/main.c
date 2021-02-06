@@ -48,6 +48,10 @@ ISR(TIMER0_COMPA_vect)
     uint8_t states = (clock_a.state << PULSER_A_PIN)
                      | (clock_b.state << PULSER_B_PIN)
                      | (clock_c.state << PULSER_C_PIN);
+#ifndef DEBUG
+    // outputs should be inverted in released hardware
+    states ^= PULSERS_PINS_MASK;
+#endif
     // writes pin states to output register in one pass
     PULSERS_PORT = (PULSERS_PORT & ~PULSERS_PINS_MASK) | states;
 }
